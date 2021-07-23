@@ -59,30 +59,6 @@ DEF BALL Solid {
   physics Physics {
   }
 }
-DEF BALL Solid {
-  translation 0 0.33 -0.18
-  children [
-    DEF BALL_GEOMETRY Shape {
-      appearance PBRAppearance {
-        baseColorMap ImageTexture {
-          url [
-            "textures/water.jpg"
-          ]
-        }
-        roughness 1
-        metalness 0
-      }
-      geometry Sphere {
-        radius 0.05
-        subdivision 2
-      }
-    }
-  ]
-  name "solid(5)"
-  boundingObject USE BALL_GEOMETRY
-  physics Physics {
-  }
-}
 DEF WALL1 Solid {
   translation 0.505 0.03 0
   children [
