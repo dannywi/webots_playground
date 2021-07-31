@@ -25,7 +25,7 @@ using namespace std;
 // a controller program.
 // The arguments of the main function can be specified by the
 // "controllerArgs" field of the Robot node
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   // create the Robot instance.
   shared_ptr<Robot> robot = make_shared<Robot>();
 
@@ -35,36 +35,50 @@ int main(int argc, char **argv) {
   const int time_step = 64;
 
   // initialize motors
-  auto wheel_names = {"wheel_front_left", "wheel_front_right",
-                      "wheel_rear_left", "wheel_rear_right"};
-
-  array<Motor *, 4> wheels;
-  transform(
-      wheel_names.begin(), wheel_names.end(), wheels.begin(),
-      [&robot](const char *wheel_name) { return robot->getMotor(wheel_name); });
-
-  double speed = 1.5;  // rad/sec
-  for (auto wheel : wheels) {
-    wheel->setPosition(INFINITY);
-    wheel->setVelocity(speed);
-  }
+  array<Motor*, 2> wheels_left, wheels_right;
+  auto fill_wheel_fn = [&robot](const array<const char*, 2>& names, auto& wheels) {
+    transform(names.begin(), names.end(), wheels.begin(), [&robot](auto name) { return robot->getMotor(name); });
+  };
+  fill_wheel_fn({"wheel_front_left", "wheel_rear_left"}, wheels_left);
+  fill_wheel_fn({"wheel_front_right", "wheel_rear_right"}, wheels_right);
 
   // initialize sensors
   auto sensor_names = {"dist_sensor_left", "dist_sensor_right"};
 
-  array<DistanceSensor *, 2> sensors;
+  array<DistanceSensor*, 2> sensors;
   transform(sensor_names.begin(), sensor_names.end(), sensors.begin(),
-            [&robot](const char *sensor_name) {
-              return robot->getDistanceSensor(sensor_name);
-            });
+            [&robot](const char* sensor_name) { return robot->getDistanceSensor(sensor_name); });
   for (auto sensor : sensors) sensor->enable(time_step);
 
+  auto init_fn = [](auto wheels) {
+    for (auto wheel : wheels) {
+      wheel->setPosition(INFINITY);
+      wheel->setVelocity(0);
+    }
+  };
+  init_fn(wheels_left);
+  init_fn(wheels_right);
+
+  const double SPEED = 2.5;  // rad/sec
+  const unsigned short TURN_CONSTANT = 120;
+  unsigned short avoid_counter = 0;
   // Main loop:
   // - perform simulation steps until Webots is stopping the controller
   while (robot->step(time_step) != -1) {
-    // Read the sensors:
-    cout << "DEBUG ... sensors L[" << sensors[0]->getValue() << "] R["
-         << sensors[1]->getValue() << "]" << endl;
+    // cout << "DEBUG ... sensors L[" << sensors[0]->getValue() << "] R[" << sensors[1]->getValue() << "]" << endl;
+    double speed_left = SPEED;
+    double speed_right = SPEED;
+
+    if (avoid_counter > 0) {
+      --avoid_counter;
+      speed_left *= -1;
+    } else {
+      for (auto sensor : sensors)
+        if (sensor->getValue() < 950) avoid_counter = TURN_CONSTANT / SPEED;
+    }
+
+    for (auto wheel : wheels_left) wheel->setVelocity(speed_left);
+    for (auto wheel : wheels_right) wheel->setVelocity(speed_right);
   };
 
   return 0;

@@ -66,6 +66,7 @@
 ###-----------------------------------------------------------------------------
 CXX := clang++
 CXXFLAGS := -std=c++17
+WEBOTS_HOME := /Applications/Webots.app
 ### Do not modify: this includes Webots global Makefile.include
 null :=
 space := $(null) $(null)
