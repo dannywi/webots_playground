@@ -1,0 +1,195 @@
+PROTO FourWheeler [
+    field SFVec3f    translation  0 0 0
+    field SFRotation rotation     0 1 0 0
+    field SFFloat    bodyMass     1
+]
+{
+    Robot {
+    translation is translation
+    rotation IS rotation
+    children [
+        DistanceSensor {
+        translation 0.02 0 0.1
+        rotation 0 1 0 -1.0472003061004251
+        children [
+            DEF SENSOR_BOX Shape {
+            appearance PBRAppearance {
+                baseColor 0.2 0.3 1
+            }
+            geometry Box {
+                size 0.01 0.01 0.01
+            }
+            }
+        ]
+        name "dist_sensor_left"
+        boundingObject USE SENSOR_BOX
+        }
+        DistanceSensor {
+        translation -0.02 0 0.1
+        rotation 0 1 0 -2.094399693899575
+        children [
+            DEF SENSOR_BOX Shape {
+            appearance PBRAppearance {
+                baseColor 0.2 0.3 1
+            }
+            geometry Box {
+                size 0.01 0.01 0.01
+            }
+            }
+        ]
+        name "dist_sensor_right"
+        boundingObject USE SENSOR_BOX
+        }
+        DEF BODY_SHAPE Shape {
+        appearance PBRAppearance {
+            baseColor 0.9 0.3 0.2
+            roughness 0.2
+            metalness 0.4
+        }
+        geometry Box {
+            size 0.1 0.05 0.2
+        }
+        }
+        DEF W_FRONT_LEFT HingeJoint {
+        jointParameters HingeJointParameters {
+            anchor 0.06 0 0.05
+        }
+        device [
+            RotationalMotor {
+            name "wheel_front_left"
+            }
+        ]
+        endPoint DEF WHEEL1 Solid {
+            translation 0.06000000179392618 -7.889619477799426e-07 0.05000000218490906
+            rotation -6.427812726565247e-17 6.715813858658567e-17 1 1.570799693899574
+            children [
+            DEF WHEEL Shape {
+                appearance PBRAppearance {
+                baseColorMap ImageTexture {
+                    url [
+                    "textures/wood.jpg"
+                    ]
+                }
+                metalness 0
+                }
+                geometry Cylinder {
+                height 0.018
+                radius 0.04
+                }
+            }
+            ]
+            boundingObject USE WHEEL
+            physics DEF WHEEL_PHYSICS Physics {
+            }
+        }
+        }
+        DEF W_FRONT_RIGHT HingeJoint {
+        jointParameters HingeJointParameters {
+            anchor -0.06 0 0.05
+        }
+        device [
+            RotationalMotor {
+            name "wheel_front_right"
+            }
+        ]
+        endPoint DEF WHEEL1 Solid {
+            translation -0.06 0 0.05
+            rotation 0 0 1 1.570799693899574
+            children [
+            DEF WHEEL Shape {
+                appearance PBRAppearance {
+                baseColorMap ImageTexture {
+                    url [
+                    "textures/wood.jpg"
+                    ]
+                }
+                metalness 0
+                }
+                geometry Cylinder {
+                height 0.018
+                radius 0.04
+                }
+            }
+            ]
+            name "solid(1)"
+            boundingObject USE WHEEL
+            physics DEF WHEEL_PHYSICS Physics {
+            }
+        }
+        }
+        DEF W_REAR_LEFT HingeJoint {
+        jointParameters HingeJointParameters {
+            anchor 0.06 0 -0.05
+        }
+        device [
+            RotationalMotor {
+            name "wheel_rear_left"
+            }
+        ]
+        endPoint DEF WHEEL1 Solid {
+            translation 0.06 0 -0.05
+            rotation 0 0 1 1.570799693899574
+            children [
+            DEF WHEEL Shape {
+                appearance PBRAppearance {
+                baseColorMap ImageTexture {
+                    url [
+                    "textures/wood.jpg"
+                    ]
+                }
+                metalness 0
+                }
+                geometry Cylinder {
+                height 0.018
+                radius 0.04
+                }
+            }
+            ]
+            name "solid(2)"
+            boundingObject USE WHEEL
+            physics DEF WHEEL_PHYSICS Physics {
+            }
+        }
+        }
+        DEF W_REAR_RIGHT HingeJoint {
+        jointParameters HingeJointParameters {
+            anchor -0.06 0 -0.05
+        }
+        device [
+            RotationalMotor {
+            name "wheel_rear_right"
+            }
+        ]
+        endPoint DEF WHEEL1 Solid {
+            translation -0.06 0 -0.05
+            rotation 0 0 1 1.570799693899574
+            children [
+            DEF WHEEL Shape {
+                appearance PBRAppearance {
+                baseColorMap ImageTexture {
+                    url [
+                    "textures/wood.jpg"
+                    ]
+                }
+                metalness 0
+                }
+                geometry Cylinder {
+                height 0.018
+                radius 0.04
+                }
+            }
+            ]
+            name "solid(3)"
+            boundingObject USE WHEEL
+            physics DEF WHEEL_PHYSICS Physics {
+            }
+        }
+        }
+    ]
+    boundingObject USE BODY_SHAPE
+    physics Physics {
+    }
+    controller "FourWheelerController"
+    mass IS bodyMass
+    }
+}
