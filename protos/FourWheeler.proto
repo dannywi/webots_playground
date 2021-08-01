@@ -1,11 +1,11 @@
 PROTO FourWheeler [
-    field SFVec3f    translation  0 0 0
+    field SFVec3f    translation  0 0.04 0
     field SFRotation rotation     0 1 0 0
     field SFFloat    bodyMass     1
 ]
 {
     Robot {
-    translation is translation
+    translation IS translation
     rotation IS rotation
     children [
         DistanceSensor {
