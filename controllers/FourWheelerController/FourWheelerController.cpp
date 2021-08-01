@@ -10,6 +10,7 @@
 #include <array>
 #include <iostream>
 #include <memory>
+#include <random>
 #include <webots/DistanceSensor.hpp>
 #include <webots/Motor.hpp>
 #include <webots/Robot.hpp>
@@ -60,21 +61,39 @@ int main(int argc, char** argv) {
   init_fn(wheels_right);
 
   const double SPEED = 2.5;  // rad/sec
-  const unsigned short TURN_CONSTANT = 120;
   unsigned short avoid_counter = 0;
+
+  default_random_engine generator;
+  uniform_int_distribution<int> distribution(80, 160);
+  uniform_int_distribution<int> direction_dice(1, 2);
+  bool turn_left = true;
+
   // Main loop:
   // - perform simulation steps until Webots is stopping the controller
   while (robot->step(time_step) != -1) {
-    // cout << "DEBUG ... sensors L[" << sensors[0]->getValue() << "] R[" << sensors[1]->getValue() << "]" << endl;
     double speed_left = SPEED;
     double speed_right = SPEED;
 
+    if (sensors[0]->getValue() < 1000 || sensors[1]->getValue() < 1000)
+      cout << "DEBUG ... sensors L[" << sensors[0]->getValue() << "] R[" << sensors[1]->getValue() << "]" << endl;
+
     if (avoid_counter > 0) {
       --avoid_counter;
-      speed_left *= -1;
     } else {
       for (auto sensor : sensors)
-        if (sensor->getValue() < 950) avoid_counter = TURN_CONSTANT / SPEED;
+        if (sensor->getValue() < 950) {
+          avoid_counter = distribution(generator) / SPEED;
+          turn_left = direction_dice(generator) == 1;
+          cout << "DEBUG ... avoid counter [" << avoid_counter << "] turn_left [" << turn_left << "]" << endl;
+          break;
+        }
+    }
+
+    if (avoid_counter > 0) {
+      if (turn_left)
+        speed_left *= -1;
+      else
+        speed_right *= -1;
     }
 
     for (auto wheel : wheels_left) wheel->setVelocity(speed_left);

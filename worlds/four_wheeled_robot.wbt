@@ -4,8 +4,8 @@ WorldInfo {
   coordinateSystem "NUE"
 }
 Viewpoint {
-  orientation 0.26940006360827035 0.9546101958903181 0.1270550259931043 5.319614378150977
-  position -1.1048431590254488 0.5180968358651388 0.8542801455430723
+  orientation 0.3668887588134338 0.9039365724618394 0.21975284212560164 5.085638923300973
+  position -1.4423534343768314 0.8460762156634921 0.8599695775637727
 }
 TexturedBackground {
 }
@@ -79,7 +79,7 @@ Robot {
   children [
     DistanceSensor {
       translation 0.02 0 0.1
-      rotation 0 1 0 0.3
+      rotation 0 1 0 -1.0472003061004251
       children [
         DEF SENSOR_BOX Shape {
           appearance PBRAppearance {
@@ -95,7 +95,7 @@ Robot {
     }
     DistanceSensor {
       translation -0.02 0 0.1
-      rotation 0 1 0 -0.3
+      rotation 0 1 0 -2.094399693899575
       children [
         DEF SENSOR_BOX Shape {
           appearance PBRAppearance {
