@@ -7,6 +7,8 @@
 #include <webots/Motor.hpp>
 #include <webots/Robot.hpp>
 
+#include "Utils.hpp"
+
 using namespace std;
 using namespace webots;
 
@@ -63,7 +65,15 @@ void movement_decomposition(const joint_array<double>& tgt_pos, double duration_
   }
 }
 
-static void lie_down(double duration, Spot& spot) {
+template <typename T>
+ostream& operator<<(ostream& os, const joint_array<T>& ar) {
+  os << "[";
+  for (size_t i = 0; i < ar.size(); ++i) os << ar[i] << (i < ar.size() - 1 ? " " : "");
+  os << "]";
+  return os;
+}
+
+void lie_down(double duration, Spot& spot) {
   const joint_array<double> tgt_pos = {-0.40, -0.99, 1.59,   // Front left leg
                                        0.40,  -0.99, 1.59,   // Front right leg
                                        -0.40, -0.99, 1.59,   // Rear left leg
@@ -99,7 +109,7 @@ void give_paw(Spot& spot) {
   movement_decomposition(tgt_pos1, 2, spot);
 
   const double initial_time = spot.me->getTime();
-  while (spot.me->getTime() - initial_time < 8) {
+  while (spot.me->getTime() - initial_time < 6) {
     spot.legs[4]->setPosition(0.2 * sin(2 * spot.me->getTime()) + 0.6);  // Upperarm movement
     spot.legs[5]->setPosition(0.4 * sin(2 * spot.me->getTime()));        // Forearm movement
     spot.step();
@@ -108,12 +118,47 @@ void give_paw(Spot& spot) {
   sit_down(3, spot);
 }
 
+void jiggle(size_t duration_sec, Spot& spot) {
+  // remember initial pos
+  joint_array<double> init_pos;
+  for (size_t m = 0; m < spot.legs.size(); ++m) init_pos[m] = spot.legs[m]->getTargetPosition();
+
+  auto create_target = [init_pos]() {
+    const double deviation = 0.5;
+    auto new_pos = init_pos;
+    for (size_t i = 0; i < init_pos.size(); ++i) new_pos[i] = init_pos[i] * (1 + sp::util::get_random(deviation));
+    return new_pos;
+  };
+
+  const double initial_time = spot.me->getTime();
+  double last_start_time = initial_time;
+  double interval_sec = 1.0;
+  joint_array<double> new_pos = create_target();
+  while (spot.me->getTime() - initial_time < duration_sec) {
+    if (spot.me->getTime() - last_start_time > interval_sec) {
+      // interval passed, get new position
+      new_pos = create_target();
+      last_start_time = spot.me->getTime();
+    }
+    movement_decomposition(new_pos, interval_sec, spot);
+    spot.step();
+  }
+}
+
 }  // namespace sp
 
 int main(int argc, char** argv) {
   sp::Spot spot;
 
-  sp::sit_down(2, spot);
-  sp::give_paw(spot);
-  sp::stand_up(0.05, spot);
+  // try jumping
+  // sp::lie_down(1, spot);
+  // sp::sit_down(2, spot);
+  // sp::give_paw(spot);
+  // sp::stand_up(0.05, spot);
+
+  // jiggle randomly
+  sp::stand_up(1, spot);
+  sp::jiggle(10, spot);
+  sp::sit_down(1, spot);
+  sp::jiggle(10, spot);
 }
