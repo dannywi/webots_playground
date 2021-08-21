@@ -1,4 +1,4 @@
-# Spot Tried To Get Off a Car
+# Spot Tries To Get Off a Cart
 Drop Spot on top of a cart, and make it escape from it
 
 
