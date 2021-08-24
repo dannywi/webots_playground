@@ -5,7 +5,7 @@
 
 namespace sp::util {
 
-namespace priv {
+namespace inner {
 template <typename T>
 T get_random_sub(T range, std::mt19937& generator);
 
@@ -20,14 +20,15 @@ int get_random_sub<int>(int range, std::mt19937& generator) {
   std::uniform_int_distribution<int> distribution(-range, range);
   return distribution(generator);
 }
-}  // namespace priv
+}  // namespace inner
 
+// gives random number [-range, range]
 template <typename T>
 T get_random(T range) {
   static std::random_device os_seed;
   static const uint_least32_t seed = os_seed();
   static std::mt19937 generator(seed);
-  return priv::get_random_sub(range, generator);
+  return inner::get_random_sub(range, generator);
 }
 
 }  // namespace sp::util
