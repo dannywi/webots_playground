@@ -136,68 +136,51 @@ void spread_legs(double duration_sec, Spot& spot) {
 }
 
 void walk_version1(double duration_sec, Spot& spot) {
-  const double shoulder1 = -0.5;
-  const double shoulder2 = 0.6;
-  const double elbow1 = 0.8;
+  const double shoulder1 = -0.3;
+  const double shoulder2 = 0.4;
+  const double elbow1 = 0.3;
   const double elbow2 = -0.2;
   const double abduct = 0.2;
 
+  auto elbow_mv = fn::square;
+  auto shoulder_mv = fn::tanh4;
+
+  // clang-format off
   auto pos1 = std::make_shared<inner::TargetNode>();
-  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ROTATE, shoulder1, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ROTATE, fn::tanh4, pos1->tgt_info.profile_fn);
-  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::ELBOW, elbow1, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::ELBOW, fn::cube, pos1->tgt_info.profile_fn);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
+                         shoulder1, pos1->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
+                         shoulder2, pos1->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
+                         elbow1, pos1->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
+                         elbow2, pos1->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -abduct, pos1->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abduct, pos1->tgt_info.tgt_pos);
 
-  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ROTATE, shoulder1, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ROTATE, fn::tanh4, pos1->tgt_info.profile_fn);
-  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::ELBOW, elbow1, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::ELBOW, fn::cube, pos1->tgt_info.profile_fn);
-
-  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ROTATE, shoulder2, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ROTATE, fn::tanh4, pos1->tgt_info.profile_fn);
-  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::ELBOW, elbow2, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::ELBOW, fn::cube, pos1->tgt_info.profile_fn);
-
-  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ROTATE, shoulder2, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ROTATE, fn::tanh4, pos1->tgt_info.profile_fn);
-  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::ELBOW, elbow2, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::ELBOW, fn::cube, pos1->tgt_info.profile_fn);
-
-  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ABDUCT, -abduct, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ABDUCT, abduct, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ABDUCT, abduct, pos1->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ABDUCT, -abduct, pos1->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE; }, shoulder_mv, pos1->tgt_info.profile_fn);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW; }, elbow_mv, pos1->tgt_info.profile_fn);
 
   auto pos2 = std::make_shared<inner::TargetNode>();
-  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ROTATE, shoulder2, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ROTATE, fn::tanh4, pos2->tgt_info.profile_fn);
-  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::ELBOW, elbow2, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::ELBOW, fn::cube, pos2->tgt_info.profile_fn);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
+                         shoulder2, pos2->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
+                         shoulder1, pos2->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
+                         elbow2, pos2->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
+                         elbow1, pos2->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -abduct, pos2->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abduct, pos2->tgt_info.tgt_pos);
 
-  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ROTATE, shoulder2, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ROTATE, fn::tanh4, pos2->tgt_info.profile_fn);
-  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::ELBOW, elbow2, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::ELBOW, fn::cube, pos2->tgt_info.profile_fn);
-
-  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ROTATE, shoulder1, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ROTATE, fn::tanh4, pos2->tgt_info.profile_fn);
-  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::ELBOW, elbow1, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::ELBOW, fn::cube, pos2->tgt_info.profile_fn);
-
-  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ROTATE, shoulder1, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ROTATE, fn::tanh4, pos2->tgt_info.profile_fn);
-  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::ELBOW, elbow1, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::ELBOW, fn::cube, pos2->tgt_info.profile_fn);
-
-  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ABDUCT, -abduct, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ABDUCT, abduct, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ABDUCT, abduct, pos2->tgt_info.tgt_pos);
-  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ABDUCT, -abduct, pos2->tgt_info.tgt_pos);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE; }, shoulder_mv, pos2->tgt_info.profile_fn);
+  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW; }, elbow_mv, pos2->tgt_info.profile_fn);
+  // clang-format on
 
   pos1->next = pos2;
   pos2->next = pos1;
 
-  inner::chain_nodes(pos1, 3, spot);
+  inner::chain_nodes(pos1, duration_sec, spot);
 }
 
 }  // namespace sp::walk

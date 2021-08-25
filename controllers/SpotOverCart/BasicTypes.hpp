@@ -23,27 +23,27 @@ enum class Pos { FRONT, BACK };
 enum class Type { SHOULDER_ABDUCT, SHOULDER_ROTATE, ELBOW };
 
 namespace motor {
-const joint_array<std::string> names{"front left shoulder abduction motor",  "front left shoulder rotation motor",  "front left elbow motor",
-                                     "front right shoulder abduction motor", "front right shoulder rotation motor", "front right elbow motor",
-                                     "rear left shoulder abduction motor",   "rear left shoulder rotation motor",   "rear left elbow motor",
-                                     "rear right shoulder abduction motor",  "rear right shoulder rotation motor",  "rear right elbow motor"};
+const joint_array<std::string> names = {"front left shoulder abduction motor",  "front left shoulder rotation motor",  "front left elbow motor",
+                                        "front right shoulder abduction motor", "front right shoulder rotation motor", "front right elbow motor",
+                                        "rear left shoulder abduction motor",   "rear left shoulder rotation motor",   "rear left elbow motor",
+                                        "rear right shoulder abduction motor",  "rear right shoulder rotation motor",  "rear right elbow motor"};
 
 // clang-format off
-const joint_array<Side> sides{
+const joint_array<Side> sides = {
     Side::LEFT,  Side::LEFT,  Side::LEFT,
     Side::RIGHT, Side::RIGHT, Side::RIGHT,
     Side::LEFT,  Side::LEFT,  Side::LEFT,
     Side::RIGHT, Side::RIGHT, Side::RIGHT,
 };
 
-const joint_array<Pos> positions{
+const joint_array<Pos> positions = {
     Pos::FRONT, Pos::FRONT, Pos::FRONT,
     Pos::FRONT, Pos::FRONT, Pos::FRONT,
     Pos::BACK,  Pos::BACK,  Pos::BACK,
     Pos::BACK,  Pos::BACK,  Pos::BACK,
 };
 
-const joint_array<Type> types{
+const joint_array<Type> types = {
     Type::SHOULDER_ABDUCT, Type::SHOULDER_ROTATE, Type::ELBOW,
     Type::SHOULDER_ABDUCT, Type::SHOULDER_ROTATE, Type::ELBOW,
     Type::SHOULDER_ABDUCT, Type::SHOULDER_ROTATE, Type::ELBOW,
@@ -52,7 +52,7 @@ const joint_array<Type> types{
 
 template <typename T>struct Range { T min; T max; };
 
-std::unordered_map<Type, Range<double>> type_range{
+std::unordered_map<Type, Range<double>> type_range = {
     {Type::SHOULDER_ABDUCT, {-0.6, 0.5}},
     {Type::SHOULDER_ROTATE, {-1.7, 1.7}},
     {Type::ELBOW, {-0.45, 1.6}},
@@ -67,6 +67,15 @@ void set_joint_value(Pos pos, Side side, Type type, VAL_T value, ARR_T& joints) 
   }
 
   joints[index[std::make_tuple(pos, side, type)]] = value;
+};
+
+template <typename ARR_T, typename VAL_T, typename COND_FN>
+void set_joint(COND_FN condition_fn, VAL_T value, ARR_T& joints) {
+  for(size_t i = 0; i < joints.size(); ++i) {
+    if(condition_fn(positions[i], sides[i], types[i])) {
+        joints[i] = value;
+    }
+  }
 };
 
 }  // namespace motor

@@ -26,15 +26,7 @@ void uneasy(Spot& spot) {
 int main(int argc, char** argv) {
   sp::Spot spot;
 
-  // sp::try_jumping(spot);
-  // sp::uneasy(spot);
-
-  // sp::single::sit_down(2, spot);
-
-  sp::walk::spread_legs(3, spot);
-  sp::walk::walk_version1(5, spot);
-  // sp::walk::test_position2(3, spot);
-  // sp::walk::test_position(5, spot);
-  // sp::walk::test_position2(3, spot);
+  sp::walk::spread_legs(2, spot);
+  sp::walk::walk_version1(3, spot);
   // sp::single::jiggle(50, spot);
 }
