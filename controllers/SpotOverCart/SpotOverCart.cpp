@@ -31,8 +31,8 @@ int main(int argc, char** argv) {
 
   // sp::single::sit_down(2, spot);
 
-  sp::walk::test_position2(3, spot);
-  sp::walk::test_position3(5, spot);
+  sp::walk::spread_legs(3, spot);
+  sp::walk::walk_version1(5, spot);
   // sp::walk::test_position2(3, spot);
   // sp::walk::test_position(5, spot);
   // sp::walk::test_position2(3, spot);

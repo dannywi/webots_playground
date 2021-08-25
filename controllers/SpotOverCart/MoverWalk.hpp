@@ -125,7 +125,7 @@ void test_position(double duration_sec, Spot& spot) {
   inner::move_decomposed(tgt_info, duration_sec, spot);
 }
 
-void test_position2(double duration_sec, Spot& spot) {
+void spread_legs(double duration_sec, Spot& spot) {
   inner::TargetInfo tgt_info;
   const double abduct = 0.2;
   tgt_info.tgt_pos = {-abduct, 0, 0,   // Front left leg
@@ -135,11 +135,11 @@ void test_position2(double duration_sec, Spot& spot) {
   inner::move_decomposed(tgt_info, duration_sec, spot);
 }
 
-void test_position3(double duration_sec, Spot& spot) {
-  const double shoulder1 = -0.6;
-  const double shoulder2 = 1.0;
-  const double elbow1 = 0.6;
-  const double elbow2 = -0.3;
+void walk_version1(double duration_sec, Spot& spot) {
+  const double shoulder1 = -0.5;
+  const double shoulder2 = 0.6;
+  const double elbow1 = 0.8;
+  const double elbow2 = -0.2;
   const double abduct = 0.2;
 
   auto pos1 = std::make_shared<inner::TargetNode>();
