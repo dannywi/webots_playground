@@ -9,18 +9,39 @@
 
 namespace sp::walk {
 
-namespace inner {
+namespace fn {
+double linear(double x) { return x; }
+double square(double x) { return x * x; }
+double cube(double x) { return x * x * x; }
 
+// sigmoid, y approaching 0 and 1 at x = 0 and 1
+template <int STEEP>
+double tan_h(double x) {
+  return 0.5 * (tanh((STEEP * x) - static_cast<double>(STEEP) / 2.0)) + 0.5;
+}
+
+auto tanh4 = tan_h<4>;
+auto tanh7 = tan_h<7>;
+}  // namespace fn
+
+namespace inner {
 // target position of joints and the profile function on how to get there
 // check get_profile to see how the profile functions are used
 struct TargetInfo {
-  sp::joint_array<double> tgt_pos;
-  sp::joint_array<std::function<double(double)>> profile_fn;
+  TargetInfo() {
+    tgt_pos.fill(0);
+    profile_fn.fill(fn::linear);
+  }
+  sp::joint_array<double> tgt_pos{0};
+  sp::joint_array<std::function<double(double)>> profile_fn{fn::linear};
 };
 
+// todo:
+//   add conditional to go to next, some kind of state management
+//     check during steps to go early
 struct TargetNode {
-  TargetInfo targetInfo;
-  std::shared_ptr<TargetNode> next;
+  TargetInfo tgt_info;
+  std::shared_ptr<TargetNode> next{nullptr};
 };
 
 template <typename T>
@@ -79,30 +100,23 @@ void move_decomposed(const TargetInfo& tgt_info, double duration_sec, Spot& spot
   }
 }
 
-}  // namespace inner
-
-double fn_linear(double x) { return x; }
-double fn_square(double x) { return x * x; }
-double fn_cube(double x) { return x * x * x; }
-
-// sigmoid, y approaching 0 and 1 at x = 0 and 1
-template <int STEEP>
-double fn_tanh(double x) {
-  return 0.5 * (tanh((STEEP * x) - static_cast<double>(STEEP) / 2.0)) + 0.5;
+void chain_nodes(std::shared_ptr<TargetNode> node, double duration_sec, Spot& spot) {
+  std::shared_ptr<TargetNode> curr = node;
+  while (curr != nullptr) {
+    std::cout << "[SPOT] .... going to next node " << curr->tgt_info.tgt_pos << std::endl;
+    move_decomposed(curr->tgt_info, duration_sec, spot);
+    curr = curr->next;
+  }
+  std::cout << "[SPOT] ... finished" << std::endl;
 }
 
-auto fn_tanh4 = fn_tanh<4>;
-auto fn_tanh7 = fn_tanh<7>;
+}  // namespace inner
 
 void test_position(double duration_sec, Spot& spot) {
   inner::TargetInfo tgt_info;
-  tgt_info.tgt_pos = {0, 0, 0,   // Front left leg
-                      0, 0, 0,   // Front right leg
-                      0, 0, 0,   // Rear left leg
-                      0, 0, 0};  // Rear right leg
 
-  std::vector<std::function<double(double)>> funcs{fn_linear, fn_square, fn_cube, fn_tanh4, fn_tanh7};
-  auto pick = [funcs]() { return funcs[abs(static_cast<int>(sp::util::get_random(static_cast<int>(funcs.size()-1))))]; };
+  std::vector<std::function<double(double)>> funcs{fn::linear, fn::square, fn::cube, fn::tanh4, fn::tanh7};
+  auto pick = [funcs]() { return funcs[abs(static_cast<int>(sp::util::get_random(static_cast<int>(funcs.size() - 1))))]; };
   tgt_info.profile_fn = {pick(), pick(), pick(),   // Front left leg
                          pick(), pick(), pick(),   // Front right leg
                          pick(), pick(), pick(),   // Rear left leg
@@ -113,16 +127,77 @@ void test_position(double duration_sec, Spot& spot) {
 
 void test_position2(double duration_sec, Spot& spot) {
   inner::TargetInfo tgt_info;
-  tgt_info.tgt_pos = {0, 0, -0.45,  // Front left leg
-                      0, 0, -0.45,  // Front right leg
-                      0, 0, 1.6,    // Rear left leg
-                      0, 0, 1.6};   // Rear right leg
-  tgt_info.profile_fn = {fn_cube, fn_linear, fn_linear,  // Front left leg
-                         fn_cube, fn_linear, fn_cube,    // Front right leg
-                         fn_cube, fn_linear, fn_linear,  // Rear left leg
-                         fn_cube, fn_linear, fn_tanh4};  // Rear right leg
-
+  const double abduct = 0.2;
+  tgt_info.tgt_pos = {-abduct, 0, 0,   // Front left leg
+                      abduct,  0, 0,   // Front right leg
+                      -abduct, 0, 0,   // Rear left leg
+                      abduct,  0, 0};  // Rear right leg
   inner::move_decomposed(tgt_info, duration_sec, spot);
+}
+
+void test_position3(double duration_sec, Spot& spot) {
+  const double shoulder1 = -0.6;
+  const double shoulder2 = 1.0;
+  const double elbow1 = 0.6;
+  const double elbow2 = -0.3;
+  const double abduct = 0.2;
+
+  auto pos1 = std::make_shared<inner::TargetNode>();
+  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ROTATE, shoulder1, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ROTATE, fn::tanh4, pos1->tgt_info.profile_fn);
+  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::ELBOW, elbow1, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::ELBOW, fn::cube, pos1->tgt_info.profile_fn);
+
+  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ROTATE, shoulder1, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ROTATE, fn::tanh4, pos1->tgt_info.profile_fn);
+  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::ELBOW, elbow1, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::ELBOW, fn::cube, pos1->tgt_info.profile_fn);
+
+  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ROTATE, shoulder2, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ROTATE, fn::tanh4, pos1->tgt_info.profile_fn);
+  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::ELBOW, elbow2, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::ELBOW, fn::cube, pos1->tgt_info.profile_fn);
+
+  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ROTATE, shoulder2, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ROTATE, fn::tanh4, pos1->tgt_info.profile_fn);
+  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::ELBOW, elbow2, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::ELBOW, fn::cube, pos1->tgt_info.profile_fn);
+
+  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ABDUCT, -abduct, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ABDUCT, abduct, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ABDUCT, abduct, pos1->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ABDUCT, -abduct, pos1->tgt_info.tgt_pos);
+
+  auto pos2 = std::make_shared<inner::TargetNode>();
+  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ROTATE, shoulder2, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ROTATE, fn::tanh4, pos2->tgt_info.profile_fn);
+  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::ELBOW, elbow2, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::ELBOW, fn::cube, pos2->tgt_info.profile_fn);
+
+  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ROTATE, shoulder2, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ROTATE, fn::tanh4, pos2->tgt_info.profile_fn);
+  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::ELBOW, elbow2, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::ELBOW, fn::cube, pos2->tgt_info.profile_fn);
+
+  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ROTATE, shoulder1, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ROTATE, fn::tanh4, pos2->tgt_info.profile_fn);
+  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::ELBOW, elbow1, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::ELBOW, fn::cube, pos2->tgt_info.profile_fn);
+
+  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ROTATE, shoulder1, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ROTATE, fn::tanh4, pos2->tgt_info.profile_fn);
+  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::ELBOW, elbow1, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::ELBOW, fn::cube, pos2->tgt_info.profile_fn);
+
+  motor::set_joint_value(Pos::FRONT, Side::LEFT, Type::SHOULDER_ABDUCT, -abduct, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::FRONT, Side::RIGHT, Type::SHOULDER_ABDUCT, abduct, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::RIGHT, Type::SHOULDER_ABDUCT, abduct, pos2->tgt_info.tgt_pos);
+  motor::set_joint_value(Pos::BACK, Side::LEFT, Type::SHOULDER_ABDUCT, -abduct, pos2->tgt_info.tgt_pos);
+
+  pos1->next = pos2;
+  pos2->next = pos1;
+
+  inner::chain_nodes(pos1, 3, spot);
 }
 
 }  // namespace sp::walk

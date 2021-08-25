@@ -1,8 +1,9 @@
 #include <iostream>
 
 #include "BasicTypes.hpp"
-#include "MoverWalk.hpp"
 #include "MoverSingle.hpp"
+#include "MoverWalk.hpp"
+#include "Utils.hpp"
 
 using namespace std;
 
@@ -26,13 +27,14 @@ int main(int argc, char** argv) {
   sp::Spot spot;
 
   // sp::try_jumping(spot);
-  sp::uneasy(spot);
+  // sp::uneasy(spot);
 
-  sp::single::sit_down(4, spot);
+  // sp::single::sit_down(2, spot);
 
-  sp::walk::test_position(5, spot);
   sp::walk::test_position2(3, spot);
-  sp::walk::test_position(5, spot);
-  sp::walk::test_position2(3, spot);
-  sp::single::jiggle(50, spot);
+  sp::walk::test_position3(5, spot);
+  // sp::walk::test_position2(3, spot);
+  // sp::walk::test_position(5, spot);
+  // sp::walk::test_position2(3, spot);
+  // sp::single::jiggle(50, spot);
 }

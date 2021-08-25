@@ -81,7 +81,7 @@ void jiggle(size_t duration_sec, Spot& spot) {
     const double deviation = 0.05;
     auto new_pos = init_pos;
     for (size_t i = 0; i < init_pos.size(); ++i) {
-      auto range = motor::type_range[motor::type[i]];
+      auto range = motor::type_range[motor::types[i]];
       new_pos[i] = init_pos[i] + sp::util::get_random(deviation) * (range.max - range.min);
       new_pos[i] = std::min(range.max, std::max(range.min, new_pos[i]));
     }
