@@ -5,24 +5,10 @@
 #include <vector>
 
 #include "BasicTypes.hpp"
+#include "Profile.hpp"
 #include "Utils.hpp"
 
 namespace sp::walk {
-
-namespace fn {
-double linear(double x) { return x; }
-double square(double x) { return x * x; }
-double cube(double x) { return x * x * x; }
-
-// sigmoid, y approaching 0 and 1 at x = 0 and 1
-template <int STEEP>
-double tan_h(double x) {
-  return 0.5 * (tanh((STEEP * x) - static_cast<double>(STEEP) / 2.0)) + 0.5;
-}
-
-auto tanh4 = tan_h<4>;
-auto tanh7 = tan_h<7>;
-}  // namespace fn
 
 namespace inner {
 // target position of joints and the profile function on how to get there
@@ -38,6 +24,9 @@ struct TargetInfo {
   joint_array<std::function<double(double)>> profile_fn;
 };
 
+using joint_mv_pair = std::pair<joint_array<double>, joint_array<std::function<double(double)>>>;
+const double UNDEF = std::numeric_limits<double>::max();
+
 // ideas:
 //   - add conditional to go to next, some kind of state management
 //     - use to stop or skip to next early
@@ -48,8 +37,7 @@ struct TargetNode {
   TargetInfo tgt_info;
   std::shared_ptr<TargetNode> next{nullptr};
 
-  static std::shared_ptr<TargetNode> link(std::vector<std::pair<joint_array<double>, joint_array<std::function<double(double)>>>> raw_list,
-                                          bool looper = false) {
+  static std::shared_ptr<TargetNode> link(std::vector<joint_mv_pair> raw_list, bool looper = false) {
     std::shared_ptr<TargetNode> last;
     std::shared_ptr<TargetNode> first;
     for (auto item : raw_list) {
@@ -65,39 +53,15 @@ struct TargetNode {
   }
 };
 
-template <typename T>
-std::vector<T> get_profile(T fr, T to, size_t num_steps, std::function<T(T)> fn) {
-  static_assert(std::is_floating_point<T>::value == true, "range must be in floating point");
-
-  std::vector<T> profile;
-  bool inverted = false;
-  if (to <= fr) {
-    inverted = true;
-    std::swap(to, fr);
-  }
-
-  // get base profile 0 to 1
-  for (size_t i = 0; i < num_steps; ++i) {
-    T x = static_cast<T>(i + 1) / static_cast<T>(num_steps);
-    profile.push_back(fn(x));
-  }
-
-  // scale to range
-  T range = to - fr;
-  double max = static_cast<double>(profile.back());
-  for (size_t i = 0; i < profile.size(); ++i) profile[i] = fr + range * profile[i] / max;
-
-  if (inverted) {
-    std::swap(fr, to);  // for readability
-    for (size_t i = 0; i < profile.size(); ++i) profile[i] = fr - (profile[i] - to);
-  }
-  return profile;
-}
-
 joint_array<std::vector<double>> get_incremental_steps(const joint_array<double>& init_pos, const joint_array<double>& tgt_pos, size_t num_steps,
                                                        const joint_array<std::function<double(double)>>& profile_fn) {
   joint_array<std::vector<double>> result;
   for (size_t i = 0; i < init_pos.size(); ++i) {
+    if (tgt_pos[i] == UNDEF) {  // can use optional, if not too verbose
+      std::vector<double> no_move(num_steps, init_pos[i]);
+      result[i] = no_move;
+      continue;
+    }
     result[i] = get_profile(init_pos[i], tgt_pos[i], num_steps, profile_fn[i]);
   }
   return result;
@@ -125,11 +89,9 @@ void chain_nodes(std::shared_ptr<TargetNode> node, double duration_sec, Spot& sp
   std::shared_ptr<TargetNode> curr = node;
 
   while (curr != nullptr) {
-    std::cout << "[SPOT] .... going to next node " << curr->tgt_info.tgt_pos << std::endl;
     move_decomposed(curr->tgt_info, duration_sec, spot);
     curr = curr->next;
   }
-  std::cout << "[SPOT] ... finished" << std::endl;
 }
 
 }  // namespace inner
@@ -138,8 +100,8 @@ void base_position(double duration_sec, Spot& spot) {
   inner::TargetInfo tgt_info;
 
   double abduct = 0.15;
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -abduct, tgt_info.tgt_pos);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abduct, tgt_info.tgt_pos);
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -abduct, tgt_info.tgt_pos);
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abduct, tgt_info.tgt_pos);
 
   std::vector<std::function<double(double)>> funcs{fn::linear, fn::square, fn::cube, fn::tanh4, fn::tanh7};
   auto pick = [funcs]() { return funcs[abs(static_cast<int>(sp::util::get_random(static_cast<int>(funcs.size() - 1))))]; };
@@ -150,56 +112,50 @@ void base_position(double duration_sec, Spot& spot) {
 
 void spread_legs(double duration_sec, Spot& spot) {
   inner::TargetInfo tgt_info;
-  const double abduct = 0.2;
-  tgt_info.tgt_pos = {-abduct, 0, 0,   // Front left leg
-                      abduct,  0, 0,   // Front right leg
-                      -abduct, 0, 0,   // Rear left leg
-                      abduct,  0, 0};  // Rear right leg
+  const double abduct = 0.1;
+  tgt_info.tgt_pos = {-abduct, -0.4, 0.3,   // Front left leg
+                      abduct,  -0.4, 0.3,   // Front right leg
+                      -abduct, -0.4, 0.3,   // Rear left leg
+                      abduct,  -0.4, 0.3};  // Rear right leg
   inner::move_decomposed(tgt_info, duration_sec, spot);
 }
 
 // chain 2 positions and use move functions to make the states in between form a "walking" curve
 void walk_v1(double duration_sec, Spot& spot) {
-  // clang-format off
   // template position, legs spread
   joint_array<double> base;
   base.fill(0);
   const double abduct = 0.2;
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -abduct, base);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abduct, base);
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -abduct, base);
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abduct, base);
 
-  const double shoulder1 = -0.3;
-  const double shoulder2 = 0.4;
-  const double elbow1 = 0.3;
-  const double elbow2 = -0.2;
+  const double shoulderB = -0.3;
+  const double shoulderF = 0.4;
+  const double elbowB = 0.3;
+  const double elbowF = -0.2;
+
+  // diagonal opposites
+  auto FL_BR = [](auto p, auto s) { return (p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT); };
+  auto FR_BL = [](auto p, auto s) { return (p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT); };
 
   // move diagonal opposite pairs forwards and backwards
   joint_array<double> tgt1 = base;
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
-                         shoulder1, tgt1);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
-                         shoulder2, tgt1);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
-                         elbow1, tgt1);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
-                         elbow2, tgt1);
+  motor::set_joints([&](auto p, auto s, auto t) { return FL_BR(p, s) && t == Type::SHOULDER_ROTATE; }, shoulderB, tgt1);
+  motor::set_joints([&](auto p, auto s, auto t) { return FL_BR(p, s) && t == Type::ELBOW; }, elbowB, tgt1);
+  motor::set_joints([&](auto p, auto s, auto t) { return FR_BL(p, s) && t == Type::SHOULDER_ROTATE; }, shoulderF, tgt1);
+  motor::set_joints([&](auto p, auto s, auto t) { return FR_BL(p, s) && t == Type::ELBOW; }, elbowF, tgt1);
 
   // swap the position (diagonal mirror of the above)
   joint_array<double> tgt2 = base;
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
-                         shoulder2, tgt2);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
-                         shoulder1, tgt2);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
-                         elbow2, tgt2);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
-                         elbow1, tgt2);
-  // clang-format on
+  motor::set_joints([&](auto p, auto s, auto t) { return FL_BR(p, s) && t == Type::SHOULDER_ROTATE; }, shoulderF, tgt2);
+  motor::set_joints([&](auto p, auto s, auto t) { return FL_BR(p, s) && t == Type::ELBOW; }, elbowF, tgt2);
+  motor::set_joints([&](auto p, auto s, auto t) { return FR_BL(p, s) && t == Type::SHOULDER_ROTATE; }, shoulderB, tgt2);
+  motor::set_joints([&](auto p, auto s, auto t) { return FR_BL(p, s) && t == Type::ELBOW; }, elbowB, tgt2);
 
   joint_array<std::function<double(double)>> default_mv;
   default_mv.fill(fn::linear);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE; }, fn::tanh4, default_mv);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW; }, fn::square, default_mv);
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE; }, fn::tanh4, default_mv);
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::ELBOW; }, fn::square, default_mv);
 
   auto first = inner::TargetNode::link(
       {
@@ -211,7 +167,10 @@ void walk_v1(double duration_sec, Spot& spot) {
   inner::chain_nodes(first, duration_sec, spot);
 }
 
-void turn_left_v1(double duration_sec, Spot& spot) {
+void turn_left_v1(Spot& spot, double speed_ratio = 1) {
+  const double default_sec = 0.3;
+  double duration_sec = std::max(0.0, std::min(3.0, default_sec / speed_ratio));
+
   const double shoulder = -0.2;
   const double elbow = 0.35;
   const double abduct_out = 0.2;
@@ -222,43 +181,176 @@ void turn_left_v1(double duration_sec, Spot& spot) {
   joint_array<double> tgt1;
   tgt1.fill(0);
 
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -abduct_out, tgt1);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abduct_out, tgt1);
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -abduct_out, tgt1);
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abduct_out, tgt1);
 
   // Lifting diagonally opposite legs slightly up and inwards
   joint_array<double> tgt2 = tgt1;
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
                    0, tgt2);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
                    shoulder, tgt2);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
                    elbow, tgt2);
 
   // Landing the legs slightly inwards
   joint_array<double> tgt3 = tgt1;
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
                    abduct_in, tgt3);
 
   // Lifting the other leg pair
   joint_array<double> tgt4 = tgt1;
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
                    shoulder, tgt4);
-  motor::set_joint([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
                    elbow, tgt4);
+  // clang-format on
 
   joint_array<std::function<double(double)>> linear;
   linear.fill(fn::linear);
   auto first = inner::TargetNode::link(
-    {
-      { tgt1, linear },
-      { tgt2, linear },
-      { tgt3, linear },
-      { tgt4, linear },
-    },
-    true
-  );
+      {
+          {tgt1, linear},
+          {tgt2, linear},
+          {tgt3, linear},
+          {tgt4, linear},
+      },
+      true);
 
   inner::chain_nodes(first, duration_sec, spot);
+}
+
+namespace inner {
+// pass multiple rows of legs filter, target position, move function
+joint_mv_pair gen_pos(std::vector<std::tuple<std::function<bool(Pos, Side, Type)>, double, std::function<double(double)>>> info) {
+  joint_array<double> tgt;
+  tgt.fill(UNDEF);  // default no move
+  joint_array<std::function<double(double)>> move_fn;
+  move_fn.fill(fn::linear);
+
+  for (const auto& i : info) {
+    motor::set_joints(std::get<0>(i), std::get<1>(i), tgt);
+    motor::set_joints(std::get<0>(i), std::get<2>(i), move_fn);
+  }
+
+  return std::make_pair(tgt, move_fn);
+}
+
+struct LegPos {
+  Pos p;
+  Side s;
+  double shoulder_abd;
+  std::function<double(double)> shoulder_abd_fn;
+  double shoulder_rot;
+  std::function<double(double)> shoulder_rot_fn;
+  double elbow;
+  std::function<double(double)> elbow_fn;
+};
+
+joint_mv_pair gen_pos_leg(LegPos leg) {
+  joint_array<double> tgt;
+  tgt.fill(UNDEF);  // default no move
+  joint_array<std::function<double(double)>> move_fn;
+  move_fn.fill(fn::linear);
+
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && p == leg.p && s == leg.s; }, leg.shoulder_abd, tgt);
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && p == leg.p && s == leg.s; }, leg.shoulder_abd_fn, move_fn);
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && p == leg.p && s == leg.s; }, leg.shoulder_rot, tgt);
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && p == leg.p && s == leg.s; }, leg.shoulder_rot_fn, move_fn);
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::ELBOW && p == leg.p && s == leg.s; }, leg.elbow, tgt);
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::ELBOW && p == leg.p && s == leg.s; }, leg.elbow_fn, move_fn);
+
+  return std::make_pair(tgt, move_fn);
+}
+
+}  // namespace inner
+
+void move_sideways(Side side, size_t times, Spot& spot, double speed_ratio = 1.0) {
+  std::vector<inner::joint_mv_pair> raw_list;
+  const double default_sec = 0.3;
+  double duration_sec = std::max(0.0, std::min(3.0, default_sec / speed_ratio));
+
+  // template position, legs spread, leaned down a bit to lower center of gravity
+  auto pos1 = inner::gen_pos({
+      std::make_tuple([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -0.1, fn::linear),
+      std::make_tuple([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, 0.1, fn::linear),
+      std::make_tuple([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE; }, -0.3, fn::linear),
+      std::make_tuple([](auto p, auto s, auto t) { return t == Type::ELBOW; }, 0.4, fn::linear),
+  });
+
+  // lift one side, bending knees on both sides
+  double abd_left, abd_right;
+  std::tie(abd_left, abd_right) = side == Side::RIGHT ? std::make_tuple(0.5, 0.25) : std::make_tuple(-0.25, -0.5);
+  auto pos2 = inner::gen_pos({
+      std::make_tuple([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, abd_left, fn::linear),
+      std::make_tuple([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abd_right, fn::linear),
+      std::make_tuple([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE; }, -0.4, fn::linear),
+      std::make_tuple([&](auto p, auto s, auto t) { return t == Type::ELBOW; }, 0.6, fn::linear),
+  });
+
+  for (size_t i = 0; i < times; ++i) {
+    raw_list.emplace_back(pos1);
+    raw_list.emplace_back(pos2);
+  }
+
+  raw_list.emplace_back(pos1);
+
+  inner::chain_nodes(inner::TargetNode::link(raw_list), duration_sec, spot);
+}
+
+void walk_v2(size_t step_sets, Spot& spot, double speed_ratio = 1.0) {
+  const double default_sec = 0.3;
+  double duration_sec = std::max(0.0, std::min(3.0, default_sec / speed_ratio));
+
+  std::vector<inner::joint_mv_pair> raw_list;
+
+  // base position, legs spread, leaned down a bit to lower center of gravity
+  raw_list.emplace_back(inner::gen_pos({
+      std::make_tuple([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -0.1, fn::linear),
+      std::make_tuple([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, 0.1, fn::linear),
+      std::make_tuple([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE; }, -0.3, fn::linear),
+      std::make_tuple([](auto p, auto s, auto t) { return t == Type::ELBOW; }, 0.4, fn::linear),
+  }));
+  inner::chain_nodes(inner::TargetNode::link(raw_list, false), duration_sec, spot);
+
+  // walking loop starts here
+  raw_list.clear();
+
+  auto lean = [](Side side, auto& raw_list) {
+    double abd_l = -0.1;
+    double abd_r = 0.1;
+    double rot = -0.3;
+    double elb = 0.4;
+    if(side == Side::LEFT) {
+      abd_l += 0.2;
+    } else {
+      abd_r -= 0.2;
+    }
+    raw_list.emplace_back(inner::gen_pos({
+        std::make_tuple([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, abd_l, fn::linear),
+        std::make_tuple([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abd_r, fn::linear),
+        std::make_tuple([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && s != side; }, rot - 0.1, fn::linear),
+        std::make_tuple([&](auto p, auto s, auto t) { return t == Type::ELBOW && s != side; }, elb - 0.1, fn::linear),
+        std::make_tuple([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && s == side; }, rot, fn::linear),
+        std::make_tuple([&](auto p, auto s, auto t) { return t == Type::ELBOW && s == side; }, elb, fn::linear),
+    }));
+  };
+
+  auto leg_fwd = [](Pos pos, Side side, auto& raw_list) {
+    raw_list.emplace_back(inner::gen_pos_leg({pos, side, inner::UNDEF, fn::linear, 0.1, fn::tanh7, 0.6, fn::square_inv}));
+    raw_list.emplace_back(inner::gen_pos_leg({pos, side, inner::UNDEF, fn::linear, 0.3, fn::tanh7, 0.1, fn::square}));
+  };
+
+  for(size_t i = 0; i < step_sets; ++i) {
+  lean(Side::LEFT, raw_list);
+  leg_fwd(Pos::FRONT, Side::RIGHT, raw_list);
+  lean(Side::RIGHT, raw_list);
+  leg_fwd(Pos::BACK, Side::LEFT, raw_list);
+  leg_fwd(Pos::FRONT, Side::LEFT, raw_list);
+  lean(Side::LEFT, raw_list);
+  leg_fwd(Pos::BACK, Side::RIGHT, raw_list);
+  }
+  inner::chain_nodes(inner::TargetNode::link(raw_list, false), duration_sec, spot);
 }
 
 }  // namespace sp::walk

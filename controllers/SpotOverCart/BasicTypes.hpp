@@ -70,7 +70,7 @@ void set_joint_value(Pos pos, Side side, Type type, VAL_T value, ARR_T& joints) 
 };
 
 template <typename ARR_T, typename VAL_T, typename COND_FN>
-void set_joint(COND_FN condition_fn, VAL_T value, ARR_T& joints) {
+void set_joints(COND_FN condition_fn, VAL_T value, ARR_T& joints) {
   for(size_t i = 0; i < joints.size(); ++i) {
     if(condition_fn(positions[i], sides[i], types[i])) {
         joints[i] = value;

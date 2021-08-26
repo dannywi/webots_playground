@@ -103,6 +103,18 @@ void jiggle(size_t duration_sec, Spot& spot) {
     inner::move_decomposed(new_pos, rand_interval(), spot);
     spot.step();
   }
+
+  // back to original pos, to stabilize next move
+  inner::move_decomposed(init_pos, rand_interval(), spot);
+}
+
+void fall_over(double duration_sec, Spot& spot) {
+  const joint_array<double> tgt_pos = {0.4, -1.0, 1.0,   // Front left leg
+                                       0.1,  0.0, -0.4,   // Front right leg
+                                       0.4, -1.0, 1.0,   // Rear left leg
+                                       0.1,  0.0, -0.4};  // Rear right leg
+
+  inner::move_decomposed(tgt_pos, duration_sec, spot);
 }
 
 }  // namespace sp::single

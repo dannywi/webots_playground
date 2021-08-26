@@ -28,14 +28,24 @@ void walk_v1(Spot& spot) {
 }
 
 void turn_left(Spot& spot) {
-  sp::walk::turn_left_v1(0.3, spot);
+  sp::walk::turn_left_v1(spot);
 }
 
+void move_sideways_back_and_forth(Spot& spot) {
+  while(true) {
+    sp::single::stand_up(1, spot);
+    sp::walk::move_sideways(sp::Side::RIGHT, 50, spot);
+    sp::single::stand_up(1, spot);
+    sp::walk::move_sideways(sp::Side::LEFT, 50, spot);
+  }
+}
 };  // namespace sp
 
 int main(int argc, char** argv) {
   sp::Spot spot;
 
-  //turn_left(spot);
-  walk_v1(spot);
+  //sp::single::fall_over(0.3, spot);
+  sp::walk::walk_v2(10, spot);
+  sp::walk::move_sideways(sp::Side::RIGHT, 7, spot);
+  sp::walk::turn_left_v1(spot);
 }
