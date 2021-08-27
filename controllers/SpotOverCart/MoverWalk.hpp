@@ -167,57 +167,52 @@ void walk_v1(double duration_sec, Spot& spot) {
   inner::chain_nodes(first, duration_sec, spot);
 }
 
-void turn_left_v1(Spot& spot, double speed_ratio = 1) {
+void turn_v1(Side side, size_t step_sets, Spot& spot, double speed_ratio = 1) {
   const double default_sec = 0.3;
   double duration_sec = std::max(0.0, std::min(3.0, default_sec / speed_ratio));
 
-  const double shoulder = -0.2;
-  const double elbow = 0.35;
+  const double shoulder_init = -0.3;
+  const double shoulder = shoulder_init - 0.2;
+  const double elbow_init = 0.4;
+  const double elbow = elbow_init + 0.35;
   const double abduct_out = 0.2;
   const double abduct_in = 0.15;
 
-  // clang-format off
   // Standing with slight leg spread
   joint_array<double> tgt1;
   tgt1.fill(0);
 
   motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::LEFT; }, -abduct_out, tgt1);
   motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && s == Side::RIGHT; }, abduct_out, tgt1);
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE; }, shoulder_init, tgt1);
+  motor::set_joints([](auto p, auto s, auto t) { return t == Type::ELBOW; }, elbow_init, tgt1);
+
+  auto DIAG1 = [&](auto p, auto s) { return (p == Pos::FRONT && s != side) || (p == Pos::BACK && s == side); };
+  auto DIAG2 = [&](auto p, auto s) { return (p == Pos::FRONT && s == side) || (p == Pos::BACK && s != side); };
 
   // Lifting diagonally opposite legs slightly up and inwards
   joint_array<double> tgt2 = tgt1;
-  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
-                   0, tgt2);
-  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
-                   shoulder, tgt2);
-  motor::set_joints([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
-                   elbow, tgt2);
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && DIAG1(p, s); }, 0, tgt2);
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && DIAG1(p, s); }, shoulder, tgt2);
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::ELBOW && DIAG1(p, s); }, elbow, tgt2);
 
   // Landing the legs slightly inwards
   joint_array<double> tgt3 = tgt1;
-  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && ((p == Pos::FRONT && s == Side::RIGHT) || (p == Pos::BACK && s == Side::LEFT)); },
-                   abduct_in, tgt3);
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ABDUCT && DIAG1(p, s); }, abduct_in, tgt3);
 
   // Lifting the other leg pair
   joint_array<double> tgt4 = tgt1;
-  motor::set_joints([](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
-                   shoulder, tgt4);
-  motor::set_joints([](auto p, auto s, auto t) { return t == Type::ELBOW && ((p == Pos::FRONT && s == Side::LEFT) || (p == Pos::BACK && s == Side::RIGHT)); },
-                   elbow, tgt4);
-  // clang-format on
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::SHOULDER_ROTATE && DIAG2(p, s); }, shoulder, tgt4);
+  motor::set_joints([&](auto p, auto s, auto t) { return t == Type::ELBOW && DIAG2(p, s); }, elbow, tgt4);
 
   joint_array<std::function<double(double)>> linear;
   linear.fill(fn::linear);
-  auto first = inner::TargetNode::link(
-      {
-          {tgt1, linear},
-          {tgt2, linear},
-          {tgt3, linear},
-          {tgt4, linear},
-      },
-      true);
 
-  inner::chain_nodes(first, duration_sec, spot);
+  std::vector<inner::joint_mv_pair> raw_list;
+  for (size_t i = 0; i < step_sets; ++i) raw_list.insert(raw_list.end(), {{tgt1, linear}, {tgt2, linear}, {tgt3, linear}, {tgt4, linear}});
+  raw_list.push_back({tgt1, linear});
+
+  inner::chain_nodes(inner::TargetNode::link(raw_list), duration_sec, spot);
 }
 
 namespace inner {
@@ -321,7 +316,7 @@ void walk_v2(size_t step_sets, Spot& spot, double speed_ratio = 1.0) {
     double abd_r = 0.1;
     double rot = -0.3;
     double elb = 0.4;
-    if(side == Side::LEFT) {
+    if (side == Side::LEFT) {
       abd_l += 0.2;
     } else {
       abd_r -= 0.2;
@@ -341,14 +336,14 @@ void walk_v2(size_t step_sets, Spot& spot, double speed_ratio = 1.0) {
     raw_list.emplace_back(inner::gen_pos_leg({pos, side, inner::UNDEF, fn::linear, 0.3, fn::tanh7, 0.1, fn::square}));
   };
 
-  for(size_t i = 0; i < step_sets; ++i) {
-  lean(Side::LEFT, raw_list);
-  leg_fwd(Pos::FRONT, Side::RIGHT, raw_list);
-  lean(Side::RIGHT, raw_list);
-  leg_fwd(Pos::BACK, Side::LEFT, raw_list);
-  leg_fwd(Pos::FRONT, Side::LEFT, raw_list);
-  lean(Side::LEFT, raw_list);
-  leg_fwd(Pos::BACK, Side::RIGHT, raw_list);
+  for (size_t i = 0; i < step_sets; ++i) {
+    lean(Side::LEFT, raw_list);
+    leg_fwd(Pos::FRONT, Side::RIGHT, raw_list);
+    lean(Side::RIGHT, raw_list);
+    leg_fwd(Pos::BACK, Side::LEFT, raw_list);
+    leg_fwd(Pos::FRONT, Side::LEFT, raw_list);
+    lean(Side::LEFT, raw_list);
+    leg_fwd(Pos::BACK, Side::RIGHT, raw_list);
   }
   inner::chain_nodes(inner::TargetNode::link(raw_list, false), duration_sec, spot);
 }

@@ -27,12 +27,10 @@ void walk_v1(Spot& spot) {
   sp::walk::walk_v1(3, spot);
 }
 
-void turn_left(Spot& spot) {
-  sp::walk::turn_left_v1(spot);
-}
+void turn_left(Spot& spot) { sp::walk::turn_v1(sp::Side::LEFT, 5, spot); }
 
 void move_sideways_back_and_forth(Spot& spot) {
-  while(true) {
+  while (true) {
     sp::single::stand_up(1, spot);
     sp::walk::move_sideways(sp::Side::RIGHT, 50, spot);
     sp::single::stand_up(1, spot);
@@ -44,8 +42,11 @@ void move_sideways_back_and_forth(Spot& spot) {
 int main(int argc, char** argv) {
   sp::Spot spot;
 
-  //sp::single::fall_over(0.3, spot);
+  // sp::single::fall_over(0.3, spot);
   sp::walk::walk_v2(10, spot);
-  sp::walk::move_sideways(sp::Side::RIGHT, 7, spot);
-  sp::walk::turn_left_v1(spot);
+  sp::walk::move_sideways(sp::Side::RIGHT, 10, spot);
+  sp::walk::turn_v1(sp::Side::RIGHT, 10, spot);
+  sp::single::jiggle(3, spot);
+  sp::walk::turn_v1(sp::Side::LEFT, 5, spot);
+  sp::walk::walk_v2(100, spot);
 }
